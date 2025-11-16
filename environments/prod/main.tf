@@ -67,10 +67,24 @@ module "eks" {
   enable_cluster_logging               = var.enable_cluster_logging
   cluster_log_types                    = var.cluster_log_types
   node_groups                          = var.node_groups
-  enable_ebs_csi_driver                = var.enable_ebs_csi_driver
-  ebs_csi_driver_role_arn              = module.iam.ebs_csi_driver_role_arn
 
   tags = local.common_tags
 
   depends_on = [module.vpc, module.iam]
+}
+
+# EBS CSI Driver Add-on (created after both IAM and EKS modules to break circular dependency)
+resource "aws_eks_addon" "ebs_csi_driver" {
+  count = var.enable_ebs_csi_driver && module.iam.ebs_csi_driver_role_arn != null ? 1 : 0
+
+  cluster_name             = module.eks.cluster_id
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = module.iam.ebs_csi_driver_role_arn
+
+  tags = local.common_tags
+
+  depends_on = [
+    module.eks,
+    module.iam
+  ]
 }

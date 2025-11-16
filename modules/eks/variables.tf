@@ -93,18 +93,6 @@ variable "node_groups" {
   default = {}
 }
 
-variable "enable_ebs_csi_driver" {
-  description = "Enable EBS CSI Driver add-on"
-  type        = bool
-  default     = true
-}
-
-variable "ebs_csi_driver_role_arn" {
-  description = "IAM role ARN for EBS CSI driver"
-  type        = string
-  default     = ""
-}
-
 variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
