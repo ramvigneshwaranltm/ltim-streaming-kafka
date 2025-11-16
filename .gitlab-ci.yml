@@ -1,0 +1,176 @@
+############################################ Stages ##############################################
+stages:
+  - authenticate
+  - validate
+  - plan
+  - apply
+  - scripts
+
+############################################ Common ############################################
+.terraform-common:
+  image: 
+    name: hashicorp/terraform:light
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache aws-cli
+    - cd $TF_DIR                     # Application bundle name is same as repository name
+    - terraform init -backend-config=vars/backend.hcl -upgrade
+  #  - terraform force-unlock -force e8d908a6-43a5-fa56-9eb8-f1addec649f5
+
+############################################ Environments ############################################
+.sandbox:
+ variables: 
+   TF_DIR: iris-streaming-sandbox
+   AWS_ROLE_ARN: $AWS_ROLE_ARN_SANDBOX 
+
+# .dev-test:
+#   variables:
+#     TF_DIR: iris-streaming-devtest
+#     AWS_ROLE_ARN: $AWS_ROLE_ARN_DEVTEST 
+
+# .production:
+#   variables:
+#     TF_DIR: iris-streaming-prod
+#     AWS_ROLE_ARN: $AWS_ROLE_ARN_PRODUCTION
+
+############################################## Authenticate #############################################
+.authenticate:
+  stage: authenticate
+  image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.scania.com
+  script:
+    - >
+      STS=($(aws sts assume-role-with-web-identity
+      --role-arn ${AWS_ROLE_ARN}
+      --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
+      --web-identity-token ${GITLAB_OIDC_TOKEN}
+      --duration-seconds 3600
+      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+      --output text))
+    - echo "AWS_ACCESS_KEY_ID="${STS[0]}"" >> credentials.env
+    - echo "AWS_SECRET_ACCESS_KEY="${STS[1]}"" >> credentials.env
+    - echo "AWS_SESSION_TOKEN="${STS[2]}"" >> credentials.env
+  artifacts:
+    reports: 
+      dotenv: credentials.env
+
+authenticate-sandbox:
+  extends:
+  - .authenticate
+  - .sandbox
+
+# authenticate-dev-test:
+#   extends:
+#   - .authenticate
+#   - .dev-test
+
+# authenticate-production:
+#   extends:
+#   - .authenticate
+#   - .production
+
+############################################# Validate ###############################################
+.validate:
+  extends:
+    - .terraform-common
+  stage: validate
+  script:
+    - terraform validate    
+
+# Sandbox environment
+validate-sandbox:
+  extends:
+    - .validate                                                                    
+    - .sandbox
+  dependencies:
+    - authenticate-sandbox
+
+# validate-dev-test:
+#   extends:
+#     - .validate
+#     - .dev-test
+#   dependencies:
+#     - authenticate-dev-test
+
+# validate-production:
+#   extends:
+#     - .validate
+#     - .production
+#   dependencies:
+#     - authenticate-production
+
+############################################# Plan ###############################################
+.plan: 
+  extends:
+    - .terraform-common
+  stage: plan
+  script:
+    - terraform plan ${TFVARS} -var-file environments/streaming.tfvars -out "planfile.tf"  
+
+
+plan-sandbox:
+  extends:
+    - .plan
+    - .sandbox
+  dependencies:
+    - authenticate-sandbox
+    - validate-sandbox
+
+# plan-dev-test:
+#   extends:
+#     - .plan
+#     - .dev-test
+#   dependencies:
+#     - authenticate-dev-test
+#     - validate-dev-test
+  
+
+# plan-production:
+#   extends:
+#     - .plan
+#     - .production
+#   dependencies:
+#     - authenticate-production
+#     - validate-production
+
+############################################# Apply ###############################################
+.apply: 
+  extends:
+    - .terraform-common
+  stage: apply
+  script:
+    - terraform apply -auto-approve ${TFVARS} -var-file environments/streaming.tfvars
+#  rules:
+#    - if: $CI_COMMIT_BRANCH == "master"
+
+apply-sandbox:
+  extends:
+   - .apply
+   - .sandbox
+  dependencies:
+#    - plan-sandbox ####
+    - authenticate-sandbox
+  when: manual
+
+# apply-dev-test:
+#   extends:
+#    - .apply
+#    - .dev-test
+#   dependencies:
+#     - plan-dev-test
+#     - authenticate-dev-test
+#   when: manual
+
+# apply-prod:
+#   extends:
+#    - .apply
+#    - .production
+#   dependencies:
+#     - plan-production
+#     - authenticate-production
+#   when: manual
+############################################# Scripts ###############################################
+.scripts:
+  stage: scripts
