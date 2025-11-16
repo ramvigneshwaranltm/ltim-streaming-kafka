@@ -86,7 +86,7 @@ module "iam_oidc" {
 
 # EBS CSI Driver Add-on (created after IAM OIDC module)
 resource "aws_eks_addon" "ebs_csi_driver" {
-  count = var.enable_ebs_csi_driver && module.iam_oidc.ebs_csi_driver_role_arn != null ? 1 : 0
+  count = var.enable_ebs_csi_driver ? 1 : 0
 
   cluster_name             = module.eks.cluster_id
   addon_name               = "aws-ebs-csi-driver"
