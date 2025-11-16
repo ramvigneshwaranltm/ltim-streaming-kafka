@@ -17,18 +17,3 @@ output "eks_node_group_role_name" {
   description = "Name of the EKS node group IAM role"
   value       = aws_iam_role.eks_node_group.name
 }
-
-output "ebs_csi_driver_role_arn" {
-  description = "ARN of the EBS CSI driver IAM role"
-  value       = var.enable_ebs_csi_driver && var.oidc_provider_arn != "" ? aws_iam_role.ebs_csi_driver[0].arn : null
-}
-
-output "aws_load_balancer_controller_role_arn" {
-  description = "ARN of the AWS Load Balancer Controller IAM role"
-  value       = var.enable_aws_load_balancer_controller && var.oidc_provider_arn != "" ? aws_iam_role.aws_load_balancer_controller[0].arn : null
-}
-
-output "efs_csi_driver_role_arn" {
-  description = "ARN of the EFS CSI driver IAM role"
-  value       = var.enable_efs_csi_driver && var.oidc_provider_arn != "" ? aws_iam_role.efs_csi_driver[0].arn : null
-}

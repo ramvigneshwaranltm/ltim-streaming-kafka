@@ -33,17 +33,11 @@ module "vpc" {
 
 # IAM Module - Create base IAM roles first (before EKS cluster)
 # Note: This module creates cluster and node roles that don't need OIDC
-# OIDC-dependent roles are created after EKS cluster creation
 module "iam" {
   source = "../../modules/iam"
 
-  project_name                        = local.project_name
-  environment                         = local.environment
-  oidc_provider_arn                   = module.eks.oidc_provider_arn
-  oidc_provider_url                   = module.eks.oidc_provider_url
-  enable_ebs_csi_driver               = var.enable_ebs_csi_driver
-  enable_aws_load_balancer_controller = var.enable_aws_load_balancer_controller
-  enable_efs_csi_driver               = var.enable_efs_csi_driver
+  project_name = local.project_name
+  environment  = local.environment
 
   tags = local.common_tags
 }
@@ -73,18 +67,35 @@ module "eks" {
   depends_on = [module.vpc, module.iam]
 }
 
-# EBS CSI Driver Add-on (created after both IAM and EKS modules to break circular dependency)
+# IAM OIDC Module - Create OIDC-dependent IAM roles (after EKS cluster creation)
+module "iam_oidc" {
+  source = "../../modules/iam-oidc"
+
+  project_name                        = local.project_name
+  environment                         = local.environment
+  oidc_provider_arn                   = module.eks.oidc_provider_arn
+  oidc_provider_url                   = module.eks.oidc_provider_url
+  enable_ebs_csi_driver               = var.enable_ebs_csi_driver
+  enable_aws_load_balancer_controller = var.enable_aws_load_balancer_controller
+  enable_efs_csi_driver               = var.enable_efs_csi_driver
+
+  tags = local.common_tags
+
+  depends_on = [module.eks]
+}
+
+# EBS CSI Driver Add-on (created after IAM OIDC module)
 resource "aws_eks_addon" "ebs_csi_driver" {
-  count = var.enable_ebs_csi_driver && module.iam.ebs_csi_driver_role_arn != null ? 1 : 0
+  count = var.enable_ebs_csi_driver && module.iam_oidc.ebs_csi_driver_role_arn != null ? 1 : 0
 
   cluster_name             = module.eks.cluster_id
   addon_name               = "aws-ebs-csi-driver"
-  service_account_role_arn = module.iam.ebs_csi_driver_role_arn
+  service_account_role_arn = module.iam_oidc.ebs_csi_driver_role_arn
 
   tags = local.common_tags
 
   depends_on = [
     module.eks,
-    module.iam
+    module.iam_oidc
   ]
 }
