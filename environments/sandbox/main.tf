@@ -88,9 +88,11 @@ module "iam_oidc" {
 resource "aws_eks_addon" "ebs_csi_driver" {
   count = var.enable_ebs_csi_driver ? 1 : 0
 
-  cluster_name             = module.eks.cluster_id
-  addon_name               = "aws-ebs-csi-driver"
-  service_account_role_arn = module.iam_oidc.ebs_csi_driver_role_arn
+  cluster_name                = module.eks.cluster_id
+  addon_name                  = "aws-ebs-csi-driver"
+  service_account_role_arn    = module.iam_oidc.ebs_csi_driver_role_arn
+  resolve_conflicts           = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
   tags = local.common_tags
 
