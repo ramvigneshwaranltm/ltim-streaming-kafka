@@ -19,19 +19,19 @@ stages:
 
 ############################################ Environments ############################################
 .sandbox:
- variables: 
-   TF_DIR: iris-streaming-sandbox
-   AWS_ROLE_ARN: $AWS_ROLE_ARN_SANDBOX 
+ variables:
+   TF_DIR: environments/sandbox
+   AWS_ROLE_ARN: $AWS_ROLE_ARN_SANDBOX
 
-# .dev-test:
-#   variables:
-#     TF_DIR: iris-streaming-devtest
-#     AWS_ROLE_ARN: $AWS_ROLE_ARN_DEVTEST 
+.dev:
+  variables:
+    TF_DIR: environments/dev
+    AWS_ROLE_ARN: $AWS_ROLE_ARN_DEV
 
-# .production:
-#   variables:
-#     TF_DIR: iris-streaming-prod
-#     AWS_ROLE_ARN: $AWS_ROLE_ARN_PRODUCTION
+.prod:
+  variables:
+    TF_DIR: environments/prod
+    AWS_ROLE_ARN: $AWS_ROLE_ARN_PROD
 
 ############################################## Authenticate #############################################
 .authenticate:
@@ -61,15 +61,15 @@ authenticate-sandbox:
   - .authenticate
   - .sandbox
 
-# authenticate-dev-test:
-#   extends:
-#   - .authenticate
-#   - .dev-test
+authenticate-dev:
+  extends:
+  - .authenticate
+  - .dev
 
-# authenticate-production:
-#   extends:
-#   - .authenticate
-#   - .production
+authenticate-prod:
+  extends:
+  - .authenticate
+  - .prod
 
 ############################################# Validate ###############################################
 .validate:
@@ -82,32 +82,32 @@ authenticate-sandbox:
 # Sandbox environment
 validate-sandbox:
   extends:
-    - .validate                                                                    
+    - .validate
     - .sandbox
   dependencies:
     - authenticate-sandbox
 
-# validate-dev-test:
-#   extends:
-#     - .validate
-#     - .dev-test
-#   dependencies:
-#     - authenticate-dev-test
+validate-dev:
+  extends:
+    - .validate
+    - .dev
+  dependencies:
+    - authenticate-dev
 
-# validate-production:
-#   extends:
-#     - .validate
-#     - .production
-#   dependencies:
-#     - authenticate-production
+validate-prod:
+  extends:
+    - .validate
+    - .prod
+  dependencies:
+    - authenticate-prod
 
 ############################################# Plan ###############################################
-.plan: 
+.plan:
   extends:
     - .terraform-common
   stage: plan
   script:
-    - terraform plan ${TFVARS} -var-file environments/streaming.tfvars -out "planfile.tf"  
+    - terraform plan -out "planfile.tf"  
 
 
 plan-sandbox:
@@ -118,30 +118,29 @@ plan-sandbox:
     - authenticate-sandbox
     - validate-sandbox
 
-# plan-dev-test:
-#   extends:
-#     - .plan
-#     - .dev-test
-#   dependencies:
-#     - authenticate-dev-test
-#     - validate-dev-test
-  
+plan-dev:
+  extends:
+    - .plan
+    - .dev
+  dependencies:
+    - authenticate-dev
+    - validate-dev
 
-# plan-production:
-#   extends:
-#     - .plan
-#     - .production
-#   dependencies:
-#     - authenticate-production
-#     - validate-production
+plan-prod:
+  extends:
+    - .plan
+    - .prod
+  dependencies:
+    - authenticate-prod
+    - validate-prod
 
 ############################################# Apply ###############################################
-.apply: 
+.apply:
   extends:
     - .terraform-common
   stage: apply
   script:
-    - terraform apply -auto-approve ${TFVARS} -var-file environments/streaming.tfvars
+    - terraform apply -auto-approve
 #  rules:
 #    - if: $CI_COMMIT_BRANCH == "master"
 
@@ -150,27 +149,24 @@ apply-sandbox:
    - .apply
    - .sandbox
   dependencies:
-#    - plan-sandbox ####
     - authenticate-sandbox
   when: manual
 
-# apply-dev-test:
-#   extends:
-#    - .apply
-#    - .dev-test
-#   dependencies:
-#     - plan-dev-test
-#     - authenticate-dev-test
-#   when: manual
+apply-dev:
+  extends:
+   - .apply
+   - .dev
+  dependencies:
+    - authenticate-dev
+  when: manual
 
-# apply-prod:
-#   extends:
-#    - .apply
-#    - .production
-#   dependencies:
-#     - plan-production
-#     - authenticate-production
-#   when: manual
+apply-prod:
+  extends:
+   - .apply
+   - .prod
+  dependencies:
+    - authenticate-prod
+  when: manual
 ############################################# Scripts ###############################################
 .scripts:
   stage: scripts
