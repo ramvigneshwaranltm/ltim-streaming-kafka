@@ -3,6 +3,6 @@
 
 bucket         = "your-terraform-state-bucket"
 key            = "ltim/sandbox/terraform.tfstate"
-region         = "eu-west-1"
+region         = "eu-north-1"
 encrypt        = true
 dynamodb_table = "terraform-state-lock"
