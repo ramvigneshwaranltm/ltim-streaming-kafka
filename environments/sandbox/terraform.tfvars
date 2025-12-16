@@ -9,7 +9,7 @@ enable_nat_gateway   = true
 single_nat_gateway   = false
 
 # EKS Cluster Configuration
-cluster_version                      = "1.28"
+cluster_version                      = "1.32"
 cluster_endpoint_public_access       = true
 cluster_endpoint_private_access      = true
 cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"] # Restrict this in production
