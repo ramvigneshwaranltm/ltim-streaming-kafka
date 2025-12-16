@@ -108,7 +108,7 @@ Edit `vars/backend.hcl`:
 ```hcl
 bucket         = "your-terraform-state-bucket"
 key            = "ltim/sandbox/terraform.tfstate"
-region         = "eu-west-1"
+region         = "eu-north-1"
 encrypt        = true
 dynamodb_table = "terraform-state-lock"
 ```
@@ -141,7 +141,7 @@ terraform apply
 #### 6. Configure kubectl
 
 ```bash
-aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-west-1
+aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-north-1
 kubectl get nodes
 ```
 
@@ -199,7 +199,7 @@ module "eks" {
   project_name        = "ltim"
   environment         = "sandbox"
   cluster_name        = "ltim-sandbox-eks"
-  cluster_version     = "1.28"
+  cluster_version     = "1.32"
   cluster_role_arn    = module.iam.eks_cluster_role_arn
   node_role_arn       = module.iam.eks_node_group_role_arn
   vpc_id              = module.vpc.vpc_id
@@ -250,7 +250,7 @@ cp -r environments/sandbox environments/staging
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `aws_region` | AWS region | `eu-west-1` |
+| `aws_region` | AWS region | `eu-north-1` |
 | `vpc_cidr` | VPC CIDR block | `10.0.0.0/16` |
 | `cluster_version` | Kubernetes version | `1.28` |
 

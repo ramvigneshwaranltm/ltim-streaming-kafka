@@ -21,7 +21,7 @@ module "eks" {
   project_name        = "ltim"
   environment         = "sandbox"
   cluster_name        = "ltim-sandbox-eks"
-  cluster_version     = "1.28"
+  cluster_version     = "1.32"
   cluster_role_arn    = module.iam.eks_cluster_role_arn
   node_role_arn       = module.iam.eks_node_group_role_arn
   vpc_id              = module.vpc.vpc_id

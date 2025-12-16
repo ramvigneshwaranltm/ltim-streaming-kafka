@@ -2,7 +2,7 @@
 variable "aws_region" {
   description = "AWS region where resources will be created"
   type        = string
-  default     = "eu-west-1"
+  default     = "eu-north-1"
 }
 
 # VPC Variables
@@ -46,7 +46,7 @@ variable "single_nat_gateway" {
 variable "cluster_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
-  default     = "1.28"
+  default     = "1.32"
 }
 
 variable "cluster_endpoint_public_access" {
