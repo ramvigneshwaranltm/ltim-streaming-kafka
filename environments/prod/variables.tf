@@ -124,3 +124,22 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+variable "aws_auth_roles" {
+  description = "Additional IAM roles to add to aws-auth ConfigMap"
+  type = list(object({
+    rolearn  = string
+    username = string
+    groups   = list(string)
+  }))
+  default = []
+}
+
+variable "aws_auth_users" {
+  description = "Additional IAM users to add to aws-auth ConfigMap"
+  type = list(object({
+    userarn  = string
+    username = string
+    groups   = list(string)
+  }))
+  default = []
+}

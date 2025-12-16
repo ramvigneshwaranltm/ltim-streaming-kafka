@@ -62,6 +62,10 @@ module "eks" {
   cluster_log_types                    = var.cluster_log_types
   node_groups                          = var.node_groups
 
+    # Add AWS Auth configuration
+  aws_auth_roles                       = var.aws_auth_roles
+  aws_auth_users                       = var.aws_auth_users
+
   tags = local.common_tags
 
   depends_on = [module.vpc, module.iam]

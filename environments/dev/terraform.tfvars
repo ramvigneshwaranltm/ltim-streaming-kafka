@@ -63,3 +63,12 @@ common_tags = {
   ManagedBy   = "Terraform"
   Team        = "Platform"
 }
+# AWS Auth Configuration for EKS Console Access
+aws_auth_users = [
+  {
+    userarn  = "arn:aws:iam::292481751409:user/terraformuser"
+    username = "terraformuser"
+    groups   = ["system:masters"]
+  }
+]
+aws_auth_roles = []
