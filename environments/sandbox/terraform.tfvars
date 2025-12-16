@@ -1,5 +1,5 @@
 # Environment Configuration
-aws_region = "eu-west-1"
+aws_region = "eu-north-1"
 
 # VPC Configuration
 vpc_cidr             = "10.0.0.0/16"

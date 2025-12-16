@@ -34,7 +34,7 @@ Edit `vars/backend.hcl` with your S3 bucket details:
 ```hcl
 bucket         = "your-terraform-state-bucket"
 key            = "ltim/sandbox/terraform.tfstate"
-region         = "eu-west-1"
+region         = "eu-north-1"
 encrypt        = true
 dynamodb_table = "terraform-state-lock"
 ```
@@ -70,7 +70,7 @@ terraform apply
 ### Configure kubectl
 
 ```bash
-aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-west-1
+aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-north-1
 ```
 
 ### Verify Cluster Access
