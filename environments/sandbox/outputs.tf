@@ -115,13 +115,10 @@ output "kafka_dns_name" {
 output "kafka_access" {
   description = "Kafka cluster access endpoints"
   value = {
-    # Internal VPC access (private)
-    internal_bootstrap = "kafka-sandbox.aws.internal:9094"
-    internal_dns_note  = "Accessible from EC2 instances and pods within the VPC"
-
-    # Public internet access (internet-facing NLB)
-    # Note: These are NLB DNS names - they will be available after deployment
-    public_bootstrap_note = "Internet-facing NLB for external access on port 9095"
-    public_access_warning = "⚠️ POC/Testing only - Enable TLS and authentication for production"
+    # External access (internet-facing NLB - accessible from internet and VPC)
+    external_port         = "9094"
+    external_access_info  = "Accessible from anywhere (internet and VPC)"
+    external_dns_note     = "Use 'kubectl get svc -n kafka' to get NLB DNS name"
+    security_warning      = "⚠️ POC/Testing only - Enable TLS and authentication for production"
   }
 }
