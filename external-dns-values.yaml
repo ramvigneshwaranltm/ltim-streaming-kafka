@@ -1,0 +1,52 @@
+# ExternalDNS Configuration for EKS
+# Automatically manages Route53 DNS records for Kubernetes services
+
+serviceAccount:
+  create: true
+  name: external-dns
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::292481751409:role/ltim-sandbox-external-dns-role
+
+# AWS provider configuration
+provider: aws
+
+# AWS specific settings
+aws:
+  region: eu-north-1
+  zoneType: private
+
+# Domain filter - only manage records in this domain
+domainFilters:
+  - aws.internal
+
+# Hosted Zone ID filter
+zoneIdFilters:
+  - Z018938029RGKVRFRH667
+
+# Policy for managing DNS records
+policy: sync  # sync will create and delete records
+
+# Sync interval
+interval: 1m
+
+# Log level
+logLevel: info
+
+# Sources to watch for DNS annotations
+sources:
+  - service
+  - ingress
+
+# Extra arguments
+extraArgs:
+  - --txt-owner-id=ltim-sandbox-eks
+  - --txt-prefix=external-dns-
+
+# Resource limits
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 100m
+  requests:
+    memory: 128Mi
+    cpu: 50m

@@ -64,12 +64,31 @@ common_tags = {
   Team        = "Platform"
 }
 # AWS Auth Configuration for EKS Console Access
+# These users and roles will have full admin access to the EKS cluster
 aws_auth_users = [
   {
     userarn  = "arn:aws:iam::292481751409:user/terraformuser"
     username = "terraformuser"
     groups   = ["system:masters"]
+  },
+  {
+    userarn  = "arn:aws:iam::292481751409:user/karthikvuppu"
+    username = "karthikvuppu"
+    groups   = ["system:masters"]
+  },
+  # WARNING: Root account mapping is NOT RECOMMENDED for security reasons
+  # This may not work as expected for console access
+  {
+    userarn  = "arn:aws:iam::292481751409:root"
+    username = "root-account"
+    groups   = ["system:masters"]
   }
 ]
 
-aws_auth_roles = []
+aws_auth_roles = [
+  {
+    rolearn  = "arn:aws:iam::292481751409:role/terraformrole"
+    username = "terraformrole"
+    groups   = ["system:masters"]
+  }
+]

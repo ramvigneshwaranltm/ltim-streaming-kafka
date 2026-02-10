@@ -72,3 +72,56 @@ output "kubectl_config_command" {
   description = "Command to update kubeconfig for this cluster"
   value       = "aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region}"
 }
+
+# Console Access Outputs
+output "eks_console_access_policy_arn" {
+  description = "ARN of the IAM policy for EKS console access"
+  value       = aws_iam_policy.eks_console_access.arn
+}
+
+output "console_access_info" {
+  description = "Information about EKS console access"
+  value = {
+    policy_name        = aws_iam_policy.eks_console_access.name
+    policy_arn         = aws_iam_policy.eks_console_access.arn
+    mapped_users       = [for user in var.aws_auth_users : user.username]
+    mapped_roles       = [for role in var.aws_auth_roles : role.username]
+    console_url        = "https://console.aws.amazon.com/eks/home?region=${var.aws_region}#/clusters/${local.cluster_name}"
+  }
+}
+
+# External DNS Outputs
+output "route53_zone_id" {
+  description = "Route53 private hosted zone ID"
+  value       = aws_route53_zone.private.zone_id
+}
+
+output "route53_zone_name" {
+  description = "Route53 private hosted zone name"
+  value       = aws_route53_zone.private.name
+}
+
+output "external_dns_role_arn" {
+  description = "IAM role ARN for ExternalDNS"
+  value       = aws_iam_role.external_dns.arn
+}
+
+output "kafka_dns_name" {
+  description = "Kafka cluster DNS name (will be created by ExternalDNS)"
+  value       = "kafka-sandbox.aws.internal"
+}
+
+# Kafka Access Information
+output "kafka_access" {
+  description = "Kafka cluster access endpoints"
+  value = {
+    # Internal VPC access (private)
+    internal_bootstrap = "kafka-sandbox.aws.internal:9094"
+    internal_dns_note  = "Accessible from EC2 instances and pods within the VPC"
+
+    # Public internet access (internet-facing NLB)
+    # Note: These are NLB DNS names - they will be available after deployment
+    public_bootstrap_note = "Internet-facing NLB for external access on port 9095"
+    public_access_warning = "⚠️ POC/Testing only - Enable TLS and authentication for production"
+  }
+}

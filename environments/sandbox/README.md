@@ -80,6 +80,72 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
+## AWS Console Access
+
+The infrastructure automatically configures IAM user and role mappings for AWS Console access to view EKS resources.
+
+### Configured Access
+
+By default, the following are mapped with full admin access:
+- **IAM User**: `terraformuser` → `system:masters` group
+- **IAM Role**: `terraformrole` → `system:masters` group
+
+### IAM Policy
+
+An IAM policy `ltim-sandbox-eks-console-access` is automatically created and attached to both the user and role, providing:
+- EKS cluster and resource viewing permissions
+- Node group and add-on information access
+- Related EC2, VPC, and IAM resource viewing
+
+### View Resources in Console
+
+1. Navigate to: [EKS Console](https://console.aws.amazon.com/eks/home?region=eu-north-1)
+2. Click on cluster: `ltim-sandbox-eks`
+3. View tabs:
+   - **Resources**: All Kubernetes resources (pods, deployments, services, etc.)
+   - **Nodes**: Worker nodes status and details
+   - **Workloads**: Running workloads and applications
+   - **Configuration**: Add-ons, networking, and logging
+
+### Adding More Users/Roles
+
+To add additional IAM users or roles for console access:
+
+1. Edit `terraform.tfvars`:
+
+```hcl
+aws_auth_users = [
+  {
+    userarn  = "arn:aws:iam::292481751409:user/new-user"
+    username = "new-user"
+    groups   = ["system:masters"]  # or other RBAC groups
+  }
+]
+
+aws_auth_roles = [
+  {
+    rolearn  = "arn:aws:iam::292481751409:role/new-role"
+    username = "new-role"
+    groups   = ["system:masters"]  # or other RBAC groups
+  }
+]
+```
+
+2. Apply the changes:
+
+```bash
+terraform apply
+```
+
+3. Attach the console access policy to the new user/role (or they will be added automatically if using the same naming pattern).
+
+### RBAC Groups
+
+Available Kubernetes RBAC groups:
+- `system:masters`: Full cluster admin access
+- `system:nodes`: Node-level access
+- Custom groups: Can be created with RoleBindings/ClusterRoleBindings
+
 ## Cleanup
 
 To destroy all resources:
