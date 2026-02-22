@@ -111,6 +111,22 @@ output "kafka_dns_name" {
   value       = "kafka-sandbox.aws.internal"
 }
 
+# Glue Schema Registry Outputs
+output "glue_schema_registry_name" {
+  description = "AWS Glue Schema Registry name"
+  value       = aws_glue_registry.kafka.registry_name
+}
+
+output "glue_schema_registry_arn" {
+  description = "AWS Glue Schema Registry ARN"
+  value       = aws_glue_registry.kafka.arn
+}
+
+output "kafka_schema_registry_role_arn" {
+  description = "IAM role ARN for Kafka pods to access Glue Schema Registry (IRSA)"
+  value       = aws_iam_role.kafka_schema_registry.arn
+}
+
 # Kafka Access Information
 output "kafka_access" {
   description = "Kafka cluster access endpoints"

@@ -19,10 +19,6 @@ aws:
 domainFilters:
   - aws.internal
 
-# Hosted Zone ID filter
-zoneIdFilters:
-  - Z018938029RGKVRFRH667
-
 # Policy for managing DNS records
 policy: sync  # sync will create and delete records
 
