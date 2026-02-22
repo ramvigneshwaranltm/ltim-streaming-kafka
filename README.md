@@ -1,389 +1,271 @@
 # LTIM EKS Infrastructure
 
-This repository contains modularized Terraform infrastructure code for deploying Amazon EKS clusters with supporting AWS resources. The infrastructure follows best practices with reusable modules and environment-specific configurations.
+Terraform infrastructure for deploying Amazon EKS with full supporting AWS resources for the LTIM Streaming Kafka platform. Follows a modular design with environment-specific configurations.
 
 ## Repository Structure
 
 ```
 .
-├── modules/                    # Shared Terraform modules
-│   ├── vpc/                   # VPC module (networking)
-│   ├── eks/                   # EKS cluster module
-│   └── iam/                   # IAM roles and policies module
-├── environments/              # Environment-specific configurations
-│   ├── sandbox/              # Sandbox environment
-│   ├── dev/                  # Development environment
-│   └── prod/                 # Production environment
-├── .gitlab-ci.yml            # CI/CD pipeline
-├── .gitignore                # Git ignore rules
-└── README.md                 # This file
+├── modules/                         # Shared Terraform modules
+│   ├── vpc/                        # VPC, subnets, NAT gateway, IGW
+│   ├── eks/                        # EKS cluster + OIDC provider
+│   ├── iam/                        # Cluster + node group IAM roles
+│   └── iam-oidc/                   # IRSA roles (EBS CSI, LB Controller)
+├── environments/
+│   └── sandbox/                    # Sandbox environment (active)
+│       ├── main.tf                 # Module orchestration
+│       ├── variables.tf            # Environment variables
+│       ├── outputs.tf              # Terraform outputs
+│       ├── external-dns.tf         # Route53 zone + ExternalDNS IAM
+│       ├── glue-schema-registry.tf # Glue Schema Registry + IRSA role
+│       ├── kafka-security.tf       # Security group rules for Kafka
+│       └── iam-console-access.tf   # AWS Console access policy
+├── external-dns-values.yaml        # ExternalDNS Helm configuration
+└── README.md
 ```
 
-## Architecture Overview
+## What Gets Deployed
 
-### Modular Design
+### Networking
 
-This repository follows a modularized approach with:
+| Resource | Value |
+|---|---|
+| Region | `eu-north-1` (Stockholm) |
+| VPC CIDR | `10.0.0.0/16` |
+| Availability Zones | 3 |
+| Private Subnets | 3 (EKS nodes) |
+| Public Subnets | 3 (Load Balancers) |
+| NAT Gateway | 1 (single, sandbox) |
 
-**Shared Modules** (`modules/`):
-- **VPC Module**: Creates multi-AZ VPC, subnets, NAT gateways, route tables
-- **EKS Module**: Creates EKS cluster, node groups, security groups, add-ons
-- **IAM Module**: Creates IAM roles for cluster, nodes, and add-ons (IRSA)
+### EKS Cluster
 
-**Root Modules** (`environments/`):
-- Each environment (sandbox, dev, prod) is a root module
-- Composes shared modules with environment-specific values
-- Maintains separate state files
+| Resource | Value |
+|---|---|
+| Cluster Name | `ltim-sandbox-eks` |
+| Kubernetes Version | `1.32` |
+| OIDC Provider | Enabled (required for IRSA) |
+| EBS CSI Driver | Managed add-on |
 
-### Features
+### IAM Roles (IRSA — no static credentials anywhere)
 
-#### Networking
-- Multi-AZ VPC with public and private subnets
-- Internet Gateway for public subnets
-- NAT Gateways for private subnet internet access
-- Configurable CIDR blocks and availability zones
-- Automatic subnet tagging for EKS integration
+| Role | Trusted Service Account | Purpose |
+|---|---|---|
+| `ltim-sandbox-eks-cluster-role` | EKS control plane | Cluster management |
+| `ltim-sandbox-eks-node-group-role` | Worker nodes | ECR, CNI, worker policies |
+| `ltim-sandbox-ebs-csi-driver-role` | `kube-system:ebs-csi-controller-sa` | EBS volume provisioning |
+| `ltim-sandbox-aws-load-balancer-controller-role` | `kube-system:aws-load-balancer-controller` | NLB provisioning |
+| `ltim-sandbox-external-dns-role` | `external-dns:external-dns` | Route53 record management |
+| `ltim-sandbox-kafka-schema-registry-role` | `kafka:kafka-schema-registry-sa` | Glue Schema Registry access |
 
-#### EKS Cluster
-- Configurable Kubernetes version
-- Public and/or private API endpoint access
-- Cluster logging to CloudWatch
-- OIDC provider for IAM Roles for Service Accounts (IRSA)
-- Security groups with proper ingress/egress rules
-- Multiple node groups with custom configurations
+### DNS — Route53 Private Hosted Zone (`aws.internal`)
 
-#### Node Groups
-- Flexible instance types and capacity (ON_DEMAND/SPOT)
-- Auto-scaling configuration
-- Custom labels and taints for workload segregation
-- Managed node group lifecycle
+DNS records are created automatically by ExternalDNS when Kafka services come up:
 
-#### IAM & Security
-- EKS cluster IAM role with required policies
-- Node group IAM role with ECR, CNI, and worker node policies
-- EBS CSI driver IAM role with IRSA
-- AWS Load Balancer Controller IAM role with IRSA
-- EFS CSI driver IAM role with IRSA (optional)
-- Principle of least privilege
+| DNS Name | Port | Points To |
+|---|---|---|
+| `kafka-sandbox.aws.internal` | `9094` | Kafka external bootstrap NLB |
+| `kafka-ui-sandbox.aws.internal` | `8080` | Kafka UI NLB |
 
-#### Add-ons
-- VPC CNI (Amazon VPC CNI plugin)
-- CoreDNS
-- kube-proxy
-- EBS CSI Driver (optional, for persistent volumes)
-- AWS Load Balancer Controller setup (optional)
-- EFS CSI Driver (optional, for shared file systems)
+> Records are VPC-scoped (private). Not publicly resolvable.
+
+### AWS Glue Schema Registry
+
+| Resource | Value |
+|---|---|
+| Registry Name | `ltim-sandbox-kafka-registry` |
+| Region | `eu-north-1` |
+| Supported Formats | Avro, JSON Schema, Protobuf |
+| Auth Method | IRSA (no credentials needed in application code) |
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-1. **AWS Account** with appropriate permissions
-2. **Terraform** >= 1.0 installed
-3. **AWS CLI** configured with credentials
-4. **S3 Bucket** for Terraform state storage
-5. **DynamoDB Table** for state locking
+- AWS CLI configured with appropriate permissions
+- Terraform >= 1.0 installed
+- S3 bucket for Terraform state: `ltim-kafka-state-bucket`
 
-### Quick Start
-
-#### 1. Clone the Repository
+### Deploy
 
 ```bash
+# 1. Clone and navigate to sandbox
 git clone <repository-url>
-cd eks-kafka
-```
+cd eks-kafka/environments/sandbox
 
-#### 2. Choose an Environment
+# 2. Initialize
+terraform init
 
-Navigate to the environment you want to deploy:
-
-```bash
-cd environments/sandbox  # or dev, prod
-```
-
-#### 3. Configure Backend Storage
-
-Edit `vars/backend.hcl`:
-
-```hcl
-bucket         = "your-terraform-state-bucket"
-key            = "ltim/sandbox/terraform.tfstate"
-region         = "eu-north-1"
-encrypt        = true
-dynamodb_table = "terraform-state-lock"
-```
-
-#### 4. Customize Variables
-
-Edit `terraform.tfvars` with your desired configuration:
-- VPC CIDR blocks
-- EKS cluster version
-- Node group configurations
-- Add-on selections
-- Tags
-
-#### 5. Deploy
-
-```bash
-# Initialize Terraform
-terraform init -backend-config=vars/backend.hcl -upgrade
-
-# Validate configuration
-terraform validate
-
-# Plan deployment
+# 3. Review what will be created
 terraform plan
 
-# Apply configuration
+# 4. Apply
 terraform apply
-```
 
-#### 6. Configure kubectl
-
-```bash
+# 5. Configure kubectl
 aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-north-1
 kubectl get nodes
 ```
 
-## Module Usage
+### Key Outputs After Apply
+
+```bash
+terraform output eks_cluster_id                    # Cluster name
+terraform output kubectl_config_command            # kubeconfig command
+terraform output external_dns_role_arn             # ExternalDNS IRSA role
+terraform output kafka_schema_registry_role_arn    # Glue IRSA role — copy for Helm
+terraform output glue_schema_registry_name         # Registry name
+terraform output kafka_dns_name                    # Kafka DNS endpoint
+```
+
+> **Important:** Copy `kafka_schema_registry_role_arn` — it is required as input to the Helm deployment in `ltim-streaming-kafka`.
+
+---
+
+## Module Details
 
 ### VPC Module
 
+Creates multi-AZ VPC with public/private subnets, NAT gateway, Internet Gateway, and all required subnet tags for EKS and NLB integration.
+
 ```hcl
 module "vpc" {
-  source = "../../modules/vpc"
-
+  source               = "../../modules/vpc"
   project_name         = "ltim"
   environment          = "sandbox"
   vpc_cidr             = "10.0.0.0/16"
+  availability_zones   = ["eu-north-1a", "eu-north-1b", "eu-north-1c"]
   private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
   enable_nat_gateway   = true
-  single_nat_gateway   = false
-  cluster_name         = "ltim-sandbox-eks"
-
-  tags = {
-    Environment = "sandbox"
-    ManagedBy   = "Terraform"
-  }
-}
-```
-
-### IAM Module
-
-```hcl
-module "iam" {
-  source = "../../modules/iam"
-
-  project_name                        = "ltim"
-  environment                         = "sandbox"
-  oidc_provider_arn                   = module.eks.oidc_provider_arn
-  oidc_provider_url                   = module.eks.oidc_provider_url
-  enable_ebs_csi_driver               = true
-  enable_aws_load_balancer_controller = true
-  enable_efs_csi_driver               = false
-
-  tags = {
-    Environment = "sandbox"
-    ManagedBy   = "Terraform"
-  }
+  single_nat_gateway   = true
 }
 ```
 
 ### EKS Module
 
-```hcl
-module "eks" {
-  source = "../../modules/eks"
+Creates EKS cluster with OIDC provider, node groups, security groups, CloudWatch logging, and aws-auth configmap for user/role mapping.
 
-  project_name        = "ltim"
-  environment         = "sandbox"
-  cluster_name        = "ltim-sandbox-eks"
-  cluster_version     = "1.32"
-  cluster_role_arn    = module.iam.eks_cluster_role_arn
-  node_role_arn       = module.iam.eks_node_group_role_arn
-  vpc_id              = module.vpc.vpc_id
-  private_subnet_ids  = module.vpc.private_subnet_ids
-  public_subnet_ids   = module.vpc.public_subnet_ids
+### IAM-OIDC Module
 
-  node_groups = {
-    general = {
-      desired_size   = 2
-      min_size       = 1
-      max_size       = 4
-      instance_types = ["t3.medium"]
-      capacity_type  = "ON_DEMAND"
-      disk_size      = 50
-      labels         = { role = "general" }
-      taints         = []
-    }
-  }
+Creates OIDC-based IAM roles for EKS add-ons (EBS CSI, Load Balancer Controller). Runs after EKS module since it requires the OIDC provider ARN and URL.
 
-  tags = {
-    Environment = "sandbox"
-    ManagedBy   = "Terraform"
-  }
-}
-```
+### Sandbox-Level Resources (environment-specific, not in modules)
 
-## Creating Additional Environments
+| File | What it creates |
+|---|---|
+| `external-dns.tf` | Route53 private zone `aws.internal` + ExternalDNS IRSA role/policy |
+| `glue-schema-registry.tf` | Glue registry `ltim-sandbox-kafka-registry` + Kafka app IRSA role |
+| `kafka-security.tf` | Security group rule — port 9095 open for Kafka POC access |
+| `iam-console-access.tf` | EKS console access policy attached to `terraformrole` and `terraformuser` |
 
-To create a new environment:
+---
 
-1. **Copy an existing environment**:
+## Adding a New Environment
+
 ```bash
-cp -r environments/sandbox environments/staging
+# 1. Copy sandbox
+cp -r environments/sandbox environments/dev
+
+# 2. Update locals in main.tf
+#    environment = "dev"
+
+# 3. Update backend config key
+#    key = "ltim/dev/terraform.tfstate"
+
+# 4. Adjust terraform.tfvars for the new environment
+
+terraform init
+terraform apply
 ```
 
-2. **Update the configuration**:
-   - Edit `main.tf`: Update `locals` block with new environment name
-   - Edit `vars/backend.hcl`: Update state file path
-   - Edit `terraform.tfvars`: Customize environment-specific values
+---
 
-3. **Update GitLab CI/CD** (optional):
-   - Add new environment variables in `.gitlab-ci.yml`
-   - Create corresponding jobs for the new environment
+## Destroying an Environment
 
-## Configuration Variables
+Before running `terraform destroy`, clean up Kubernetes-managed AWS resources first to avoid orphaned NLBs blocking VPC deletion:
 
-### Core Variables
+```bash
+# 1. Connect to cluster
+aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-north-1
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `aws_region` | AWS region | `eu-north-1` |
-| `vpc_cidr` | VPC CIDR block | `10.0.0.0/16` |
-| `cluster_version` | Kubernetes version | `1.28` |
+# 2. Uninstall Helm releases (removes NLBs)
+helm uninstall kafka-eks -n kafka
+helm uninstall external-dns -n external-dns
 
-### Node Group Configuration
+# 3. Delete PVCs (removes EBS volumes)
+kubectl delete pvc --all -n kafka
 
-```hcl
-node_groups = {
-  general = {
-    desired_size   = 2
-    min_size       = 1
-    max_size       = 4
-    instance_types = ["t3.medium"]
-    capacity_type  = "ON_DEMAND"
-    disk_size      = 50
-    labels         = { role = "general" }
-    taints         = []
-  }
-}
+# 4. Delete namespaces
+kubectl delete namespace kafka external-dns
+
+# 5. Now destroy Terraform
+cd environments/sandbox
+terraform destroy
 ```
 
-## CI/CD Pipeline
+> Skipping steps 1–4 will leave orphaned Load Balancers and EBS volumes that block VPC deletion.
 
-The repository includes a GitLab CI/CD pipeline with the following stages:
-
-1. **Authenticate**: Assume AWS role using OIDC
-2. **Validate**: Validate Terraform configuration
-3. **Plan**: Generate execution plan
-4. **Apply**: Apply changes (manual trigger)
-
-### Pipeline Variables
-
-Set these in GitLab CI/CD settings:
-
-- `AWS_ROLE_ARN_SANDBOX`: IAM role ARN for sandbox environment
-- `AWS_ROLE_ARN_DEV`: IAM role ARN for dev environment
-- `AWS_ROLE_ARN_PROD`: IAM role ARN for production environment
-
-### Running the Pipeline
-
-The pipeline runs automatically on push. To deploy:
-
-1. Review the plan stage output
-2. Manually trigger the apply stage for the desired environment
-
-## Security Best Practices
-
-1. **Network Isolation**
-   - Use private subnets for worker nodes
-   - Restrict API endpoint access with CIDR blocks
-   - Enable VPC flow logs
-
-2. **IAM**
-   - Use IRSA for pod-level permissions
-   - Follow least privilege principle
-   - Regularly review and rotate credentials
-
-3. **Encryption**
-   - Enable encryption at rest for EBS volumes
-   - Use encrypted S3 buckets for state
-   - Enable secrets encryption in EKS
-
-4. **Monitoring**
-   - Enable CloudWatch logging
-   - Set up alerts for critical events
-   - Use Container Insights
-
-5. **Compliance**
-   - Tag all resources appropriately
-   - Enable AWS Config rules
-   - Regular security audits
+---
 
 ## Troubleshooting
 
-### Common Issues
-
-**Terraform state lock error**:
+**Terraform state lock:**
 ```bash
 terraform force-unlock <LOCK_ID>
 ```
 
-**Node groups fail to create**:
-- Check IAM permissions
-- Verify subnet tags for EKS
-- Review security group rules
-
-**Cannot access cluster API**:
-- Verify public access CIDR blocks
-- Check security group rules
-- Ensure AWS credentials are correct
-
-**Circular dependency with IAM module**:
-- The IAM module handles this automatically
-- OIDC-dependent roles are created only when OIDC provider exists
-- Apply may take two passes for first deployment
-
-## Cleanup
-
-To destroy all resources in an environment:
-
+**VPC stuck during destroy (orphaned ENIs from NLBs):**
 ```bash
-cd environments/sandbox  # or dev, prod
-terraform destroy
+# List NLBs in the VPC and delete manually
+aws elbv2 describe-load-balancers --query 'LoadBalancers[?VpcId==`<vpc-id>`].LoadBalancerArn'
+aws elbv2 delete-load-balancer --load-balancer-arn <arn>
+
+# Also check classic ELBs
+aws elb describe-load-balancers
+aws elb delete-load-balancer --load-balancer-name <name>
 ```
 
-**Warning**: This will delete all resources including the EKS cluster and VPC.
+**ExternalDNS not creating DNS records:**
+- Ensure `external-dns-values.yaml` does not contain a hardcoded `zoneIdFilters` block (it should use `domainFilters` only)
+- Check logs: `kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns`
+- Verify services have annotation: `external-dns.alpha.kubernetes.io/hostname: <name>.aws.internal`
 
-## Contributing
+**Cannot access EKS API:**
+```bash
+aws eks update-kubeconfig --name ltim-sandbox-eks --region eu-north-1
+```
 
-1. Create a feature branch
-2. Make your changes
-3. Test in sandbox environment
-4. Submit merge request
-5. Get approval and merge
+**IAM policy stuck during destroy (attached to users):**
+```bash
+aws iam detach-user-policy --user-name <username> --policy-arn <arn>
+```
 
-## Module Documentation
+---
 
-Each module has its own README with detailed documentation:
+## Related Repository
 
-- [VPC Module](modules/vpc/README.md)
-- [EKS Module](modules/eks/README.md)
-- [IAM Module](modules/iam/README.md)
+**`ltim-streaming-kafka`** — Kafka application deployment (Helm) that runs on this infrastructure.
 
-## Support
+Deployment dependency:
+```
+terraform apply (this repo)
+       ↓
+copy: kafka_schema_registry_role_arn output
+       ↓
+paste into: ltim-streaming-kafka/helm/kafka-eks/values-sandbox.yaml
+       ↓
+./deploy.sh sandbox (ltim-streaming-kafka repo)
+```
 
-For issues and questions:
-- Create an issue in the repository
-- Contact the platform team
-- Refer to AWS EKS documentation
+---
 
-## Additional Resources
+## Resources
 
+- [Strimzi Kafka Operator](https://strimzi.io/docs/)
 - [AWS EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)
+- [AWS Glue Schema Registry](https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html)
+- [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+- [ExternalDNS on AWS](https://kubernetes-sigs.github.io/external-dns/v0.14.0/tutorials/aws/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- [Terraform Module Best Practices](https://www.terraform.io/docs/modules/index.html)
-- [Kubernetes Documentation](https://kubernetes.io/docs/)
-- [AWS IAM Roles for Service Accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
